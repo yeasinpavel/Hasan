@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HASAN TELECOM - Pro Vault v2.6.2</title>
+
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HT Vault">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/9316/9316744.png">
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22HASAN%20TELECOM%20Pro%20Vault%22,%22short_name%22:%22HT%20Vault%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22#020617%22,%22theme_color%22:%22#2563eb%22,%22icons%22:[{%22src%22:%22https://cdn-icons-png.flaticon.com/512/9316/9316744.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]}">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' }</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+/* Smooth Transitions */
+* { transition: background-color 0.3s ease, border-color 0.3s ease; }
+
+body { 
+    font-family: 'Inter', sans-serif; 
+    -webkit-tap-highlight-color: transparent; 
+    scroll-behavior: smooth; 
+}
+
+/* CRITICAL MOBILE FIX: Disable system menus and text selection on holdable items */
+.price-cell, .model-name {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none; /* Disables iOS context menu */
+    touch-action: manipulation;
+}
+
+.group-header:hover { cursor: pointer; background-color: rgba(59, 130, 246, 0.05); }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+.sticky-bar { position: sticky; top: 0; z-index: 50; }
+.modal-animate { animation: fadeIn 0.15s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen p-4 md:p-8 flex flex-col items-center gap-6">
+
+<div id="actionModal" class="hidden fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-6">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-xs rounded-[32px] p-8 border border-slate-200 dark:border-slate-800 shadow-2xl modal-animate text-center">
+        <h4 id="modalTitle" class="text-xs font-black tracking-widest text-slate-400 uppercase mb-4">Edit</h4>
+        <input type="text" id="modalInput" class="w-full bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-6 outline-none border-2 border-transparent focus:border-blue-500 dark:text-white font-bold text-center">
+        <div class="flex flex-col gap-3">
+            <button onclick="confirmModalAction()" class="w-full py-4 rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest shadow-lg">Confirm</button>
+            <button onclick="closeActionModal()" class="w-full py-2 text-slate-500 font-bold text-[10px] uppercase">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="colorPickerModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-6">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-xs rounded-[32px] p-8 border border-slate-200 dark:border-slate-800 shadow-2xl modal-animate text-center">
+        <h4 class="text-xs font-black tracking-widest text-slate-400 uppercase mb-6">Price Visibility</h4>
+        <div class="flex flex-col gap-4">
+            <button onclick="setPriceColor('blue')" class="w-full py-5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-tighter shadow-lg">Visible (Blue)</button>
+            <button onclick="setPriceColor('green')" class="w-full py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-tighter shadow-lg">Hidden (Green)</button>
+            <button onclick="closeColorPicker()" class="w-full py-3 text-slate-500 font-bold text-[10px] uppercase tracking-widest mt-2">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div class="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] p-8 flex flex-col items-center text-center shadow-2xl">
+    <h1 class="text-3xl font-black text-blue-600 dark:text-blue-500 tracking-tighter uppercase mb-1">HASAN TELECOM</h1>
+    <p id="modeIndicator" class="text-[10px] text-slate-400 font-bold tracking-[0.2em] uppercase mb-6">STAFF VIEW MODE</p>
+    <div class="flex items-center gap-4">
+        <button onclick="toggleTheme()" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl">
+            <span id="themeIcon" class="text-xl">🌙</span>
+        </button>
+        <button id="adminBtn" onclick="toggleAdmin()" class="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-sm tracking-widest shadow-lg">LOGIN</button>
+        <div id="adminTools" class="hidden flex gap-2"> 
+            <button onclick="exportExcel()" title="Export Filtered" class="bg-orange-600 p-4 rounded-2xl text-white shadow-lg">📊</button> 
+            <button onclick="downloadBackup()" title="Full Backup" class="bg-emerald-600 p-4 rounded-2xl text-white shadow-lg">💾</button> 
+            <button onclick="logout()" title="Logout" class="bg-red-600 p-4 rounded-2xl text-white shadow-lg">✕</button> 
+      </div>
+    </div>
+</div>
+
+<div id="statsPanel" class="hidden w-full max-w-xl grid grid-cols-3 gap-3">
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total</p>
+        <p id="statTotal" class="text-xl font-black text-blue-500">0</p>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Out of Stock</p>
+        <p id="statLow" class="text-xl font-black text-red-500">0</p>
+    </div>
+    <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Brands</p>
+        <p id="statBrands" class="text-xl font-black text-emerald-500">0</p>
+    </div>
+</div>
+
+<div id="adminPanel" class="hidden w-full max-w-xl bg-white dark:bg-slate-900 p-6 rounded-[32px] border-2 border-blue-600 shadow-2xl space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+        <select id="modelBrand" class="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl outline-none font-bold text-sm"></select>
+        <select id="modelCategory" class="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl outline-none font-bold text-sm"></select>
+    </div>
+    <div class="flex flex-col gap-2">
+        <p class="text-[10px] font-black text-slate-400 uppercase ml-2">Default Price Color for Save:</p>
+        <div class="grid grid-cols-2 gap-2">
+            <button id="bulkColorBlue" onclick="setBulkColor('blue')" class="py-2 rounded-xl border-2 border-blue-600 bg-blue-600/10 text-blue-600 font-black text-[10px] uppercase">Visible (Blue)</button>
+            <button id="bulkColorGreen" onclick="setBulkColor('green')" class="py-2 rounded-xl border-2 border-transparent bg-slate-100 dark:bg-slate-800 text-slate-500 font-black text-[10px] uppercase">Hidden (Green)</button>
+        </div>
+    </div>
+    <textarea id="bulkInput" rows="3" placeholder="Model, Price" class="w-full bg-slate-100 dark:bg-slate-800 p-4 rounded-xl outline-none font-mono text-sm"></textarea>
+    <div class="grid grid-cols-2 gap-4">
+        <button onclick="addOrUpdate()" class="bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest">SAVE</button>
+        <label class="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white py-4 rounded-2xl font-black uppercase text-center cursor-pointer text-xs flex items-center justify-center">
+            IMPORT <input type="file" id="importFile" class="hidden" onchange="importBackup(event)">
+        </label>
+    </div>
+</div>
+
+<div class="sticky-bar w-full max-w-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-6 rounded-[32px] border border-slate-200 dark:border-slate-800 space-y-2 shadow-xl">
+    <input type="text" id="searchInput" oninput="debouncedRender()" placeholder="Search Models..." class="w-full bg-slate-100 dark:bg-slate-950 p-5 rounded-2xl outline-none border-2 border-transparent focus:border-blue-500 transition-all font-semibold">
+    <select id="filterBrand" onchange="render()" class="w-full bg-slate-100 dark:bg-slate-800 p-5 rounded-2xl font-black text-orange-600 dark:text-orange-500 uppercase"></select>
+</div>
+
+<div id="vaultContent" class="w-full max-w-xl space-y-3 pb-24"></div>
+<div id="emptyState" class="hidden p-20 text-center text-slate-400 font-bold italic">No results match your search.</div>
+
+<script>
+// PWA Service Worker Registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW failed', err));
+    });
+}
+
+const ADMIN_KEY_ENCODED = "NTExNDM2";
+const BRANDS = ["SAMSUNG","XIAOMI","OPPO","VIVO","REALME","IPHONE","HUAWEI","ONEPLUS","ITEL","TECNO","INFINIX","GOOGLE PIXEL","SYMPHONY","NOKIA","MOTOROLA","NOTHING PHONE"];
+const CATEGORIES = ["Logic Board","Logic Board(IC)","Front Camera","Main Flex","LCD Flex","Finger Sensor","Ringer Box","Ear Speaker","Sim Tray","Power Flex","Volume Flex","Rubber switch","Camera Glass","Speaker Net","Network Flex","SIM Flex","Flashlight Sensor","Middle Frame","Housing","Back Part"];
+
+let data = JSON.parse(localStorage.getItem('ht_vault_v2')) || [];
+data.forEach(i => { if(!i.color) i.color='blue'; if(!i.id) i.id = Date.now() + Math.random(); });
+
+let isAdmin = false;
+let bulkColor = 'blue';
+let expandedModels = new Set();
+let searchTimer;
+let modalCallback = null;
+let currentEditingId = null;
+let windowFiltered = [];
+
+const toTitleCase = s => s.toLowerCase().split(' ').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ');
+
+function toggleTheme(){
+    const d = document.documentElement.classList.toggle('dark');
+    localStorage.theme = d ? 'dark' : 'light';
+    themeIcon.textContent = d ? '☀️' : '🌙';
+}
+if(localStorage.theme === 'light') document.documentElement.classList.remove('dark');
+
+function toggleAdmin(){
+    const p = prompt("Enter Admin Key:");
+    if(p && btoa(p) === ADMIN_KEY_ENCODED){ isAdmin = true; updateUI(); }
+}
+function logout(){ isAdmin = false; updateUI(); }
+
+function updateUI(){
+    adminPanel.classList.toggle('hidden', !isAdmin);
+    adminTools.classList.toggle('hidden', !isAdmin);
+    statsPanel.classList.toggle('hidden', !isAdmin);
+    adminBtn.classList.toggle('hidden', isAdmin);
+    modeIndicator.textContent = isAdmin ? "ADMIN AUTHORIZED" : "STAFF VIEW MODE";
+    render();
+}
+
+function setBulkColor(color) {
+    bulkColor = color;
+    bulkColorBlue.classList.toggle('border-blue-600', color === 'blue');
+    bulkColorBlue.classList.toggle('bg-blue-600/10', color === 'blue');
+    bulkColorGreen.classList.toggle('border-emerald-600', color === 'green');
+    bulkColorGreen.classList.toggle('bg-emerald-600/10', color === 'green');
+}
+
+function openActionModal(title, defaultValue, callback) {
+    modalTitle.textContent = title;
+    modalInput.value = defaultValue;
+    modalCallback = callback;
+    actionModal.classList.remove('hidden');
+    modalInput.focus();
+}
+function closeActionModal() { actionModal.classList.add('hidden'); modalCallback = null; }
+function confirmModalAction() {
+    if(modalCallback) modalCallback(modalInput.value);
+    closeActionModal();
+}
+
+function openColorPicker(id) {
+    if(!isAdmin) return;
+    currentEditingId = id;
+    colorPickerModal.classList.remove('hidden');
+}
+function closeColorPicker() { colorPickerModal.classList.add('hidden'); }
+function setPriceColor(color) {
+    const item = data.find(i => i.id == currentEditingId);
+    if(item) { item.color = color; save(); }
+    closeColorPicker();
+}
+
+function addOrUpdate(){
+    const bulk = bulkInput.value;
+    const brand = modelBrand.value;
+    const cat = modelCategory.value;
+    bulk.split('\n').forEach(line=>{
+        if(!line.trim()) return;
+        let [rawN, price="N/A"] = line.split(',').map(s=>s.trim());
+        const dName = toTitleCase(rawN);
+        const existing = data.find(i => i.brand===brand && i.cat===cat && i.name.toLowerCase()===rawN.toLowerCase());
+        if(existing){ 
+            existing.price = price; 
+            existing.name = dName;
+            existing.color = bulkColor;
+        } else {
+            data.push({id:Date.now()+Math.random(), name:dName, price, cat, brand, inStock:true, color:bulkColor});
+        }
+    });
+    bulkInput.value=''; save();
+}
+
+function deleteItem(id) {
+    if(confirm("Delete this item?")) {
+        data = data.filter(i => i.id != id);
+        save();
+    }
+}
+
+function save(){ localStorage.setItem('ht_vault_v2', JSON.stringify(data)); render(); }
+
+function toggleModel(key){
+    if(expandedModels.has(key)) expandedModels.delete(key);
+    else expandedModels.add(key);
+    render();
+}
+
+function render(){
+    if(!modelBrand.innerHTML){
+        modelBrand.innerHTML = BRANDS.map(b=>`<option>${b}</option>`).join('');
+        modelCategory.innerHTML = CATEGORIES.map(c=>`<option>${c}</option>`).join('');
+        filterBrand.innerHTML = `<option value="ALL">ALL BRANDS</option>`+BRANDS.map(b=>`<option>${b}</option>`).join('');
+    }
+
+    const rawQuery = searchInput.value.toLowerCase().trim();
+    const searchTerms = rawQuery.split(' ').filter(Boolean);
+    const brandFilter = filterBrand.value;
+
+    windowFiltered = data.filter(i=>{
+        const blob = `${i.brand} ${i.name} ${i.cat}`.toLowerCase();
+        if(rawQuery === "out") return !i.inStock && (brandFilter === "ALL" || i.brand === brandFilter);
+        return searchTerms.every(t=>blob.includes(t)) && (brandFilter==="ALL"||i.brand===brandFilter);
+    });
+
+    if(isAdmin){
+        statTotal.textContent = windowFiltered.length;
+        statLow.textContent = windowFiltered.filter(i=>!i.inStock).length;
+        statBrands.textContent = new Set(windowFiltered.map(i=>i.brand)).size;
+    }
+
+    const groups = windowFiltered.reduce((acc,i)=>{
+        const key = `${i.brand}||${i.name}`;
+        (acc[key]=acc[key]||[]).push(i);
+        return acc;
+    },{});
+
+    let html='';
+    Object.keys(groups).sort().forEach(key=>{
+        const [brand, model] = key.split('||');
+        const items = groups[key];
+        const isOpen = expandedModels.has(key);
+        html+= `
+        <div class="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div onclick="toggleModel('${key}')" class="group-header p-5 flex justify-between items-center select-none">
+                <div class="flex flex-col">
+                    <span class="text-[9px] font-black text-orange-500 bg-orange-100 dark:bg-orange-900/20 px-2 py-0.5 rounded w-fit uppercase mb-1">${brand}</span>
+                    <h3 class="text-lg font-bold dark:text-white model-name" data-key="${key}">${model} <span class="text-xs text-slate-400 font-medium">(${items.length})</span></h3>
+                </div>
+                <span class="transform transition-transform ${isOpen?'rotate-180':''} opacity-30">▼</span>
+            </div>
+            <div class="${isOpen?'block':'hidden'} bg-slate-50 dark:bg-slate-950/50 border-t dark:border-slate-800">
+                <table class="w-full text-sm">
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                        ${items.map(item=>{
+                            const pColor = item.color==='green' ? 'text-green-600' : 'text-blue-600';
+                            const isGreenHidden = !isAdmin && item.color==='green';
+                            const pDisp = isGreenHidden ? 'N/A' : (item.price && item.price!=='N/A'?`৳${item.price}`:'N/A');
+                            return `<tr>
+                                <td class="px-6 py-4 font-bold text-[11px] uppercase text-slate-500">${item.cat}</td>
+                                <td onclick="toggleStock(${item.id})" class="px-2 py-4 text-center text-[10px] font-black cursor-pointer">
+                                    ${item.inStock?'<span class="text-emerald-500">IN STOCK</span>':'<span class="text-red-500">STOCK OUT</span>'}
+                                </td>
+                                <td class="px-4 py-4 text-right font-mono font-bold ${pColor} price-cell" data-id="${item.id}" onclick="${isAdmin ? 'editPriceModal('+item.id+')' : ''}">
+                                    ${pDisp}
+                                </td>
+                                ${isAdmin ? `<td class="pr-6 py-4 w-8 text-right"><button onclick="deleteItem(${item.id})" class="text-red-500/40 hover:text-red-600 font-bold">✕</button></td>` : ''}
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+    });
+
+    vaultContent.innerHTML = html;
+    emptyState.classList.toggle('hidden', windowFiltered.length > 0);
+
+    // Re-attach long-press handlers
+    document.querySelectorAll('.model-name').forEach(el=> addLongPress(el, () => {
+        if(!isAdmin) return;
+        const [brand, oldN] = el.dataset.key.split('||');
+        openActionModal("Rename Model", oldN, (newN) => {
+            if(newN && newN !== oldN){
+                data.forEach(i => { if(i.brand === brand && i.name === oldN) i.name = toTitleCase(newN); });
+                save();
+            }
+        });
+    }));
+
+    document.querySelectorAll('.price-cell').forEach(td => addLongPress(td, () => openColorPicker(Number(td.dataset.id))));
+}
+
+/**
+ * MASTER MOBILE LONG-PRESS HANDLER
+ */
+function addLongPress(el, callback) {
+    let timer;
+    let isMoving = false;
+    let startX, startY;
+
+    const start = (e) => {
+        if (!isAdmin) return;
+        isMoving = false;
+        const touch = e.touches ? e.touches[0] : e;
+        startX = touch.clientX;
+        startY = touch.clientY;
+
+        timer = setTimeout(() => {
+            if (!isMoving) {
+                if (navigator.vibrate) navigator.vibrate(40);
+                callback();
+            }
+        }, 700);
+    };
+
+    const move = (e) => {
+        const touch = e.touches ? e.touches[0] : e;
+        if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
+            isMoving = true;
+            clearTimeout(timer);
+        }
+    };
+
+    const cancel = () => clearTimeout(timer);
+
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('touchmove', move, { passive: true });
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+    el.addEventListener('contextmenu', (e) => { if(isAdmin) e.preventDefault(); });
+}
+
+function editPriceModal(id) {
+    const item = data.find(x=>x.id == id);
+    if(!item) return;
+    openActionModal("Edit Price", item.price, (newP) => {
+        item.price = newP.trim() || "N/A";
+        save();
+    });
+}
+
+function toggleStock(id){
+    if(isAdmin){
+        const i=data.find(x=>x.id == id);
+        if(i){ i.inStock=!i.inStock; save(); }
+    }
+}
+
+function debouncedRender(){ clearTimeout(searchTimer); searchTimer=setTimeout(render,150); }
+
+function exportExcel(){
+    const rows = windowFiltered.map(i=>({ Brand: i.brand, Model: i.name, Category: i.cat, Stock: i.inStock ? "YES" : "NO", Price: i.price }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Vault");
+    XLSX.writeFile(wb, `HT_Export.xlsx`);
+}
+
+function downloadBackup(){
+    const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`HT_BACKUP.json`; a.click();
+}
+
+function importBackup(e){
+    const r = new FileReader();
+    r.onload=()=>{ try { data=JSON.parse(r.result); save(); alert("Imported!"); } catch(e){ alert("Error."); } };
+    r.readAsText(e.target.files[0]);
+}
+
+updateUI();
+</script>
+</body>
+</html>
