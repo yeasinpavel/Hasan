@@ -1,0 +1,18 @@
+{
+  "name": "HASAN TELECOM Pro Vault",
+  "short_name": "HT Vault",
+  "description": "Inventory Management System for Hasan Telecom",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/9316/9316744.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
