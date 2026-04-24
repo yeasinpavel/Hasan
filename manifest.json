@@ -18,19 +18,19 @@
       "short_name": "Invoice",
       "description": "Create a new invoice",
       "url": "/Hasan/",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "icon-128.png", "sizes": "128x128" }]
     }
   ],
   "icons": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
+      "src": "icon-128.png",
+      "sizes": "128x128",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
+      "src": "icon-128.png",
+      "sizes": "128x128",
       "type": "image/png",
       "purpose": "maskable"
     },
