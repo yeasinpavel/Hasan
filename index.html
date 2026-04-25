@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Shop Invoice">
-<link rel="manifest" href="/Hasan/manifest.json">
+<link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Shop Invoice</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -947,8 +947,9 @@ function renderArchivePage(fp){
       <button class="fp-back" onclick="backToInvoicePage()">←</button>
       <span class="fp-title">Invoice Archive</span>
       ${isAdmin?`<div style="display:flex;gap:4px">
-        <button class="tb-btn" onclick="doArchiveBackup()" title="Backup invoices">⬇</button>
-        <button class="tb-btn" onclick="document.getElementById('arch-restore-file').click()" title="Restore invoices">⬆</button>
+        <button class="tb-btn" onclick="doArchiveBackup()" title="Backup">⬇</button>
+        <button class="tb-btn" onclick="document.getElementById('arch-restore-file').click()" title="Restore">⬆</button>
+        <button class="tb-btn" style="color:#ff7070" onclick="clearAllArchive()" title="Clear all invoices">🗑</button>
         <input type="file" id="arch-restore-file" accept=".json" style="display:none" onchange="doArchiveRestore(event)">
       </div>`:''}
     </div>
@@ -1244,8 +1245,9 @@ function renderBrowsePage(fp){
       <button class="fp-back" onclick="backToInvoicePage()">←</button>
       <span class="fp-title">Browse &amp; Edit Prices</span>
       <div style="display:flex;gap:6px">
-        <button class="tb-btn" onclick="doAdminBackup()">⬇ Backup</button>
-        <button class="tb-btn" onclick="document.getElementById('admin-restore-file').click()">⬆ Restore</button>
+        <button class="tb-btn" onclick="doAdminBackup()">⬇</button>
+        <button class="tb-btn" onclick="document.getElementById('admin-restore-file').click()">⬆</button>
+        <button class="tb-btn" style="color:#ff7070" onclick="clearAllPriceBook()" title="Clear all price book">🗑</button>
         <input type="file" id="admin-restore-file" accept=".json" style="display:none" onchange="doAdminRestore(event)">
       </div>
     </div>
@@ -1377,6 +1379,41 @@ function browseDelItem(cat,idx){
   LS.set('inv_pb',pb);renderBrowseTree();showToast('✓ Deleted');
 }
 
+
+function clearAllArchive(){
+  const all=LS.get('inv_saved',{});
+  const total=Object.values(all).reduce((s,d)=>s+d.length,0);
+  if(!total){showToast('Archive is already empty.');return;}
+  if(!confirm(`Delete ALL ${total} saved invoices?\nThis cannot be undone.`))return;
+  if(!confirm('Are you sure? All invoice history will be permanently deleted.'))return;
+  LS.set('inv_saved',{});
+  LS.set('inv_phone_customers',{});
+  renderArchiveList();
+  renderQuickStats();
+  showToast('✓ All invoices cleared');
+}
+
+function clearAllCustomers(){
+  const customers=LS.get('inv_customers',[]);
+  if(!customers.length){showToast('Customer list is already empty.');return;}
+  if(!confirm(`Delete all ${customers.length} customers?\nThis cannot be undone.`))return;
+  LS.set('inv_customers',[]);
+  openPage('customers');
+  showToast('✓ All customers cleared');
+}
+
+function clearAllPriceBook(){
+  const pb=LS.get('inv_pb',{});
+  const total=Object.values(pb).reduce((s,c)=>s+c.length,0);
+  if(!total){showToast('Price book is already empty.');return;}
+  if(!confirm(`Delete all ${total} items from price book?\nThis cannot be undone.`))return;
+  LS.set('inv_pb',{});
+  LS.set('inv_cats',[]);
+  cats=[];
+  renderCatDrops();
+  renderBrowseTree();
+  showToast('✓ Price book cleared');
+}
 function doAdminBackup(){
   const data={inv_pb:LS.get('inv_pb',{}),inv_cats:LS.get('inv_cats',[]),inv_shop:LS.get('inv_shop',{})};
   data._type='pricebook';data._date=new Date().toISOString();
@@ -1728,8 +1765,9 @@ function renderCustomersPage(fp){
       <span class="fp-title">Customers</span>
       <button class="tb-btn gold" onclick="openAddCustomerPage()">＋ Add</button>
       ${isAdmin?`<div style="display:flex;gap:4px">
-        <button class="tb-btn" onclick="doCustomerBackup()" title="Backup customers">⬇</button>
-        <button class="tb-btn" onclick="document.getElementById('cust-restore-file').click()" title="Restore customers">⬆</button>
+        <button class="tb-btn" onclick="doCustomerBackup()" title="Backup">⬇</button>
+        <button class="tb-btn" onclick="document.getElementById('cust-restore-file').click()" title="Restore">⬆</button>
+        <button class="tb-btn" style="color:#ff7070" onclick="clearAllCustomers()" title="Clear all customers">🗑</button>
         <input type="file" id="cust-restore-file" accept=".json" style="display:none" onchange="doCustomerRestore(event)">
       </div>`:''}
     </div>
@@ -3093,8 +3131,13 @@ function importSmgrFile(file,resultId){
         if(!pb[category])pb[category]=[];
 
         const cost=Math.round(bdtCost);
-        // Store model with brand for display, match by full "Brand Model" or just model
-        const displayName=brand?`${brand} ${model}`:model;
+        // Smart name: if model already starts with brand, use model only
+        // e.g. brand=Realme model=Realme 6 → "Realme 6" (not "Realme Realme 6")
+        // e.g. brand=Samsung model=A54 → "Samsung A54"
+        const modelLower=model.toLowerCase();
+        const brandLower=brand.toLowerCase();
+        const alreadyHasBrand=brandLower&&modelLower.startsWith(brandLower);
+        const displayName=brand?(alreadyHasBrand?model:`${brand} ${model}`):model;
         const existIdx=pb[category].findIndex(x=>x.name.toLowerCase()===displayName.toLowerCase());
         if(existIdx>=0){
           pb[category][existIdx].buyPrice=cost;
@@ -3590,15 +3633,5 @@ async function doDownload(){
     </div>
   </div>
 </div>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/Hasan/sw.js')
-        .then(r => console.log('SW registered:', r.scope))
-        .catch(e => console.log('SW error:', e));
-    });
-  }
-</script>
 </body>
 </html>
