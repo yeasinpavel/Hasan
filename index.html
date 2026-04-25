@@ -440,6 +440,10 @@ body.dark #invoice{background:#fff;color:#000;}
 
 .pp-method-btn{padding:7px 12px;border:1.5px solid var(--line);background:var(--paper);color:var(--muted);border-radius:6px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
 .pp-method-btn.on{background:var(--gold);border-color:var(--gold);color:#fff;font-weight:600;}
+
+/* New item modal */
+#nim-save-fields{animation:fadeIn .15s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 /* ── PRINT / RECEIPT ── */
 @media print{
   body{background:#fff !important;color:#000 !important;}
@@ -2748,30 +2752,109 @@ function addItem(){
     const buyPrice=pbMatch.buyPrice!=null?pbMatch.buyPrice:null;
     _pushItem({cat,brand:brand||'',name,qty,price:Math.round(rawP),buyPrice});
   } else {
-    // NOT in price book — ask to add, then ask buying price
-    const wantSave=confirm(`"${name}" is not in your price book.\n\nAdd it to the price book?`);
-    const buyRaw=prompt(`Enter buying price (cost) for "${name}" in ৳:\n(Leave blank to skip profit tracking)`,'');
-    const buyPrice=buyRaw!=null&&buyRaw.trim()!==''?Math.round(parseFloat(buyRaw)):null;
-
-    if(wantSave&&buyPrice!=null&&!isNaN(buyPrice)&&buyPrice>=0){
-      // Ask brand name before saving
-      const entryBrand=prompt(`Brand name for "${name}" (optional):`,brand||'')||brand||'';
-      if(!pb[cat])pb[cat]=[];
-      const existIdx=pb[cat].findIndex(x=>x.name.toLowerCase()===name.toLowerCase());
-      const entry={name,buyPrice,brand:entryBrand};
-      if(existIdx>=0)pb[cat][existIdx]={...pb[cat][existIdx],...entry};
-      else pb[cat].push(entry);
-      LS.set('inv_pb',pb);
-      renderBrandDrop();
-      showToast(`✓ "${name}" added to price book`);
-    }
-
-    const finalBuyPrice=(buyPrice!=null&&!isNaN(buyPrice)&&buyPrice>=0)?buyPrice:null;
-    _pushItem({cat,brand:brand||'',name,qty,price:Math.round(rawP),buyPrice:finalBuyPrice});
+    // NOT in price book — open professional modal
+    openNewItemModal({cat, brand: brand||'', name, qty, price: Math.round(rawP)});
   }
 }
 
 
+
+// ── NEW ITEM MODAL ────────────────────────────────────────────
+let _nimPending = null; // {cat, brand, name, qty, price}
+
+function openNewItemModal(data){
+  _nimPending = data;
+  // Fill item info
+  document.getElementById('nim-name').textContent = data.name;
+  document.getElementById('nim-cat').textContent = data.cat + (data.brand ? ' · ' + data.brand : '');
+  document.getElementById('nim-buy-price').value = '';
+  document.getElementById('nim-summary').style.display = 'none';
+  // Admin section
+  const adminSec = document.getElementById('nim-admin-section');
+  adminSec.style.display = isAdmin ? '' : 'none';
+  // Reset checkbox
+  const cb = document.getElementById('nim-save-cb');
+  cb.checked = false;
+  document.getElementById('nim-save-fields').style.display = 'none';
+  document.getElementById('nim-brand').value = data.brand || '';
+  // Hint
+  document.getElementById('nim-buy-hint').textContent = isAdmin
+    ? 'for profit calculation & price book'
+    : 'for profit calculation only';
+  document.getElementById('new-item-modal').classList.add('show');
+  setTimeout(() => document.getElementById('nim-buy-price').focus(), 200);
+}
+
+function nimToggleSave(cb){
+  document.getElementById('nim-save-fields').style.display = cb.checked ? '' : 'none';
+  nimUpdateSummary();
+}
+
+function nimUpdateSummary(){
+  if(!_nimPending) return;
+  const buyRaw = parseFloat(document.getElementById('nim-buy-price').value);
+  const buy = isNaN(buyRaw) ? null : buyRaw;
+  const sell = _nimPending.price;
+  const qty = _nimPending.qty;
+  const sum = document.getElementById('nim-summary');
+  if(buy != null && sell > 0){
+    const profit = (sell - buy) * qty;
+    const margin = sell > 0 ? ((profit / (sell * qty)) * 100).toFixed(1) : 0;
+    sum.style.display = '';
+    sum.innerHTML = `Sell: ৳${fmt(sell)} &nbsp;·&nbsp; Cost: ৳${fmt(buy)} &nbsp;·&nbsp; <strong style="color:${profit>=0?'var(--green)':'var(--red)'}">Profit: ${profit>=0?'':'−'}৳${fmt(Math.abs(profit))}</strong> (${margin}%)`;
+  } else {
+    sum.style.display = 'none';
+  }
+}
+
+function nimCancel(){
+  document.getElementById('new-item-modal').classList.remove('show');
+  _nimPending = null;
+}
+
+function nimConfirm(){
+  if(!_nimPending) return;
+  const buyRaw = document.getElementById('nim-buy-price').value.trim();
+  const buyPrice = buyRaw !== '' ? Math.round(parseFloat(buyRaw)) : null;
+  const saveToBook = isAdmin && document.getElementById('nim-save-cb').checked;
+  const nimBrand = document.getElementById('nim-brand').value.trim() || _nimPending.brand || '';
+
+  // Validate: if saving to price book, buying price is required
+  if(saveToBook && (buyPrice === null || isNaN(buyPrice) || buyPrice < 0)){
+    document.getElementById('nim-buy-price').focus();
+    document.getElementById('nim-buy-price').style.borderColor = 'var(--red)';
+    showToast('Enter buying price to save to price book');
+    return;
+  }
+  document.getElementById('nim-buy-price').style.borderColor = '';
+
+  // Save to price book if checked
+  if(saveToBook && buyPrice !== null && !isNaN(buyPrice)){
+    const pb = LS.get('inv_pb', {});
+    const cat = _nimPending.cat;
+    if(!pb[cat]) pb[cat] = [];
+    const existIdx = pb[cat].findIndex(x => x.name.toLowerCase() === _nimPending.name.toLowerCase());
+    const entry = {name: _nimPending.name, buyPrice, brand: nimBrand};
+    if(existIdx >= 0) pb[cat][existIdx] = {...pb[cat][existIdx], ...entry};
+    else pb[cat].push(entry);
+    LS.set('inv_pb', pb);
+    renderBrandDrop();
+    showToast(`✓ "${_nimPending.name}" added to price book`);
+  }
+
+  // Add item to invoice
+  _pushItem({
+    cat: _nimPending.cat,
+    brand: nimBrand,
+    name: _nimPending.name,
+    qty: _nimPending.qty,
+    price: _nimPending.price,
+    buyPrice: (buyPrice !== null && !isNaN(buyPrice) && buyPrice >= 0) ? buyPrice : null,
+  });
+
+  document.getElementById('new-item-modal').classList.remove('show');
+  _nimPending = null;
+}
 // ── RETURN ITEMS ──
 function addReturnItem(){
   closeAc();
@@ -3630,6 +3713,44 @@ async function doDownload(){
     <div class="modal-btns">
       <button class="btn btn-g btn-sm" onclick="document.getElementById('partial-pay-modal').classList.remove('show')">Cancel</button>
       <button class="btn btn-p btn-full" onclick="confirmPartialPayment()">✓ Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW ITEM MODAL ═══════════════════════════════════════ -->
+<div class="modal-bg" id="new-item-modal">
+  <div class="modal" style="max-width:340px">
+    <h3>New Item</h3>
+    <div id="nim-item-info" style="background:var(--catbg);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:13px;line-height:1.7">
+      <div id="nim-name" style="font-weight:700;font-size:15px"></div>
+      <div id="nim-cat" style="color:var(--muted);font-size:12px"></div>
+    </div>
+
+    <!-- Buying price — visible to everyone -->
+    <div class="flbl">Buying Price (৳) <span style="font-size:10px;color:var(--muted)" id="nim-buy-hint">for profit calculation</span></div>
+    <input class="finp" type="number" id="nim-buy-price" inputmode="numeric" placeholder="Your cost price" style="margin-bottom:14px;font-size:16px" oninput="nimUpdateSummary()">
+
+    <!-- Save to price book — admin only -->
+    <div id="nim-admin-section" style="display:none">
+      <div style="height:1px;background:var(--line);margin-bottom:14px"></div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="nim-save-cb" onchange="nimToggleSave(this)" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+        <span style="font-size:14px;font-weight:500">Add to Price Book</span>
+      </label>
+      <div id="nim-save-fields" style="display:none;padding-left:28px">
+        <div class="flbl">Brand Name <span style="color:var(--muted);font-size:10px">optional</span></div>
+        <input class="finp" type="text" id="nim-brand" placeholder="e.g. Samsung, Vivo..." style="margin-bottom:10px">
+        <div class="flbl">Buying Price <span style="color:var(--red);font-size:10px">required to save</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Same as the buying price above</div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div id="nim-summary" style="display:none;background:var(--catbg);border-radius:6px;padding:10px;margin-bottom:14px;font-size:12px;color:var(--muted)"></div>
+
+    <div class="modal-btns">
+      <button class="btn btn-g btn-sm" onclick="nimCancel()">Cancel</button>
+      <button class="btn btn-p btn-full" onclick="nimConfirm()">✓ Add Item</button>
     </div>
   </div>
 </div>
