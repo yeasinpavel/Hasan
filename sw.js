@@ -1,21 +1,19 @@
-const CACHE = 'shop-invoice-v10';
+const CACHE = 'shop-invoice-v11';
 const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  '/Hasan/',
+  '/Hasan/index.html',
+  '/Hasan/manifest.json',
+  '/Hasan/icon-192.png',
+  '/Hasan/icon-512.png'
 ];
 
-// Install — cache core assets
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(() => {})
   );
-  self.skipWaiting(); // activate immediately
+  self.skipWaiting();
 });
 
-// Activate — delete old caches
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -24,13 +22,12 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch — network first for HTML (always fresh), cache first for assets
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
 
-  // For the main HTML — always try network first, fall back to cache
-  if (url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+  // Network first for HTML — always get fresh app
+  if (url.pathname.endsWith('.html') || url.pathname === '/Hasan/' || url.pathname === '/Hasan') {
     e.respondWith(
       fetch(e.request).then(resp => {
         if (resp && resp.status === 200) {
@@ -43,7 +40,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // For everything else — cache first, then network
+  // Cache first for everything else
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
