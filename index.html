@@ -2318,7 +2318,9 @@ function drawReceipt(pdf,data){
       lastCat=item.cat;
     }
     const total=item.qty*item.price;
-    const nameStr=(item.isReturn?'[RTN] ':'')+item.name;
+    const _tn=item.name||'';const _tb=item.brand||'';
+    const _tdn=(_tb&&!_tn.toLowerCase().startsWith(_tb.toLowerCase()))?`${_tb} ${_tn}`:_tn;
+    const nameStr=(item.isReturn?'[RTN] ':'')+_tdn;
     const qtyStr=String(item.qty);
     const amtStr=fmtAmt(Math.abs(total));
 
@@ -2909,7 +2911,11 @@ function renderItems(){
       tbody.appendChild(tr);lastCat=item.cat;
     }
     // Truncate name at 25 chars
-    const dispName=(item.name.length>25?item.name.slice(0,24)+'\u2026':item.name)+(item.isReturn?' ↩':'');
+    // Show brand before name only if brand set AND name doesn't already start with brand
+    const _rawName=item.name||'';
+    const _brand=item.brand||'';
+    const _displayName=(_brand&&!_rawName.toLowerCase().startsWith(_brand.toLowerCase()))?`${_brand} ${_rawName}`:_rawName;
+    const dispName=(_displayName.length>25?_displayName.slice(0,24)+'\u2026':_displayName)+(item.isReturn?' ↩':'');
     const priceDisp=item.isReturn?`<span style="color:#c00">-${fmt(Math.abs(item.price))}</span>`:fmt(item.price);
     const totalDisp=item.isReturn?`<span style="color:#c00">-${fmt(Math.abs(total))}</span>`:fmt(Math.abs(total));
     const tr=document.createElement('tr');
@@ -3219,15 +3225,17 @@ function importSmgrFile(file,resultId){
         // e.g. brand=Samsung model=A54 → "Samsung A54"
         const modelLower=model.toLowerCase();
         const brandLower=brand.toLowerCase();
-        const alreadyHasBrand=brandLower&&modelLower.startsWith(brandLower);
-        const displayName=brand?(alreadyHasBrand?model:`${brand} ${model}`):model;
-        const existIdx=pb[category].findIndex(x=>x.name.toLowerCase()===displayName.toLowerCase());
+        // Store model name only — brand stored separately
+        const existIdx=pb[category].findIndex(x=>
+          x.name.toLowerCase()===model.toLowerCase()&&
+          (x.brand||'').toLowerCase()===(brand||'').toLowerCase()
+        );
         if(existIdx>=0){
           pb[category][existIdx].buyPrice=cost;
           pb[category][existIdx].brand=brand;
           updated++;
         } else {
-          pb[category].push({name:displayName,buyPrice:cost,brand});
+          pb[category].push({name:model,buyPrice:cost,brand});
           added++;
         }
       }
